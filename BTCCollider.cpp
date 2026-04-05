@@ -143,8 +143,8 @@ BTCCollider::BTCCollider(Secp256K1 *secp, bool useGpu, bool stop, std::string ou
 
   useRange = (rangeStartHex.length() > 0);
   if (useRange) {
-    keyRangeStart.SetBase16(rangeStartHex.c_str());
-    keyRangeEnd.SetBase16(rangeEndHex.c_str());
+    keyRangeStart.SetBase16((char *)rangeStartHex.c_str());
+    keyRangeEnd.SetBase16((char *)rangeEndHex.c_str());
     keyRangeWidth.Set(&keyRangeEnd);
     keyRangeWidth.Sub(&keyRangeStart);
     Int one;
