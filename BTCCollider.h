@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+*/
 
 #ifndef BTCCOLLIDERH
 #define BTCCOLLIDERH
@@ -57,11 +57,15 @@ typedef struct {
 
 #ifdef WIN64
 typedef HANDLE THREAD_HANDLE;
+#define _byteswap_uint64 _byteswap_uint64
 #else
 typedef pthread_t THREAD_HANDLE;
+#define _byteswap_uint64 __builtin_bswap64
 #endif
 
 #define CPU_AFFINE
+
+//#define STATISTICS
 
 #define HASHOK(h) (((h).i8[0] & 0x80)==0)
 #define PUBX(i,j) pub[(i)*(65536*2) + 2*(j)]
@@ -70,6 +74,7 @@ typedef pthread_t THREAD_HANDLE;
 class BTCCollider {
 
 public:
+  // MODIFIED: Constructor accepts prefix and range parameters
   BTCCollider(Secp256K1 *secp, bool useGpu, bool stop, std::string outputFile,
               std::string workFile, std::string iWorkFile, uint32_t savePeriod,
               uint32_t n, int dp, bool extraPoint,
@@ -85,6 +90,7 @@ public:
 
 private:
 
+  // Original methods
   Int  GetPrivKey(hash160_t x);
   hash160_t F(hash160_t x);
   bool IsDP(hash160_t x);
@@ -92,26 +98,46 @@ private:
   void SetDP(int size);
   void FGroup(IntGroup *grp, Point *pts, Int *di, hash160_t *x);
   void AddGroup(IntGroup *grp, hash160_t *x, Point *p1, Int *dx, int i, uint16_t colMask);
+  Point Add(Point &p1, int n, uint16_t h);
   void Lock();
   void Unlock();
   void SaveWork(uint64_t totalCount, double totalTime, TH_PARAM *threads, int nbThread);
-  void LoadWork(std::string &fileName);
+  void LoadWork(std::string fileName);
+  void FetchWalks(hash160_t *x, hash160_t *y, uint64_t nbWalk);
+  void Rand(Int *seed, Int *i);
+  void Rand(Int *seed, hash160_t *i);
+  std::string GetHex(hash160_t x);
+  std::string GetTimeStr(double dTime);
+  bool isAlive(TH_PARAM *p);
+  bool hasStarted(TH_PARAM *p);
+  bool isWaiting(TH_PARAM *p);
+  uint64_t getGPUCount();
+  uint64_t getCPUCount();
 
-  // ---- New: prefix filter and key range ----
+#ifdef WIN64
+  THREAD_HANDLE LaunchThread(LPTHREAD_START_ROUTINE func, TH_PARAM *p);
+#else
+  THREAD_HANDLE LaunchThread(void *(*func)(void *), TH_PARAM *p);
+#endif
+  void JoinThreads(THREAD_HANDLE *handles, int nbThread);
+  void FreeHandles(THREAD_HANDLE *handles, int nbThread);
+
+  // NEW: Prefix filter methods
   bool MatchesPrefix(hash160_t *h);
-  Int  ClampKey(Int &key);           // Clamp key into [rangeStart, rangeEnd]
+  Int  ClampKey(Int &key);
   void ParsePrefix(const std::string &hexPrefix);
 
-  // Prefix filter data
-  uint8_t  prefixBytes[20];          // Target prefix bytes (left-aligned in HASH160)
-  int      prefixLength;             // Number of hex chars in prefix
-  int      prefixBitLen;             // Number of bits to match (prefixLength * 4)
-  bool     usePrefix;                // Whether prefix filtering is enabled
+  // NEW: Prefix filter data
+  uint8_t  prefixBytes[20];
+  int      prefixLength;
+  int      prefixBitLen;
+  bool     usePrefix;
 
-  // Key range
+  // NEW: Key range data
   Int      keyRangeStart;
   Int      keyRangeEnd;
-  Int      keyRangeWidth;            // rangeEnd - rangeStart + 1
+  Int      keyRangeWidth;
+  bool     useRange;
 
   // Original members
   Secp256K1 *secp;
@@ -121,21 +147,40 @@ private:
   int       nbGPUThread;
   uint64_t  offsetCount;
   double    offsetTime;
+  double    startTime;
   int       CPU_GRP_SIZE;
   bool      useGpu;
   bool      endOfSearch;
   bool      useSSE;
   bool      extraPoints;
   uint32_t  colSize;
-  uint64_t  dpMask;
+  uint64_t  dMask;
   int       dpSize;
   int       initDPSize;
+  int       nbFull;
+  uint16_t  colMask;
   std::string outputFile;
   std::string workFile;
   uint32_t  saveWorkPeriod;
   std::string initialSeed;
   uint64_t  nbLoadedWalk;
+  uint64_t  fetchedWalk;
+  hash160_t *loadedX;
+  hash160_t *loadedY;
   bool      saveRequest;
+
+  // Precomputed key tables
+  Int       seed;
+  Int       *pub;
+  Int       priv[10][65536];
+  Point     Gp[10];
+  Int       Kp[10];
+
+  // Endomorphism constants
+  Int       beta1;
+  Int       lambda1;
+  Int       beta2;
+  Int       lambda2;
 
 #ifdef WIN64
   HANDLE ghMutex;
