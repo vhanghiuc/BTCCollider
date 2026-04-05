@@ -143,8 +143,8 @@ BTCCollider::BTCCollider(Secp256K1 *secp, bool useGpu, bool stop, std::string ou
 
   useRange = (rangeStartHex.length() > 0);
   if (useRange) {
-    keyRangeStart.SetBase16((char *)rangeStartHex.c_str());
-    keyRangeEnd.SetBase16((char *)rangeEndHex.c_str());
+    keyRangeStart.SetBase16(rangeStartHex.c_str());
+    keyRangeEnd.SetBase16(rangeEndHex.c_str());
     keyRangeWidth.Set(&keyRangeEnd);
     keyRangeWidth.Sub(&keyRangeStart);
     Int one;
@@ -1215,6 +1215,8 @@ void BTCCollider::Search(int nbThread,std::vector<int> gpuId,std::vector<int> gr
     hashTable.Reset();
 #endif
 
+  restart_search:
+
     endOfSearch = false;
     memset(params, 0, (nbCPUThread + nbGPUThread) * sizeof(TH_PARAM));
     memset(counters, 0, sizeof(counters));
@@ -1444,10 +1446,30 @@ void BTCCollider::Search(int nbThread,std::vector<int> gpuId,std::vector<int> gr
       log2((double)lastCount+offsetCount),
       GetTimeStr(totalTime).c_str());
 
-    // NEW: Print whether the collision matches the target prefix and range
+    // NEW: Validate that BOTH hashes match the target prefix.
+    // If not, reset and restart the entire search.
+    if (usePrefix && (!MatchesPrefix(&h1) || !MatchesPrefix(&h2))) {
+      printf("[Collision does not match prefix %s — restarting search]\n",
+             GetHex(h1).substr(0, prefixLength).c_str());
+      printf("  H1=%s %s\n", GetHex(h1).c_str(), MatchesPrefix(&h1) ? "(match)" : "(no match)");
+      printf("  H2=%s %s\n", GetHex(h2).c_str(), MatchesPrefix(&h2) ? "(match)" : "(no match)");
+
+      // Reset state for next round
+      hashTable.Reset();
+      initDPSize = -1;  // Re-compute optimal DP on next round
+      offsetCount += lastCount;
+      offsetTime += Timer::get_tick() - startTime;
+      nbLoadedWalk = 0;
+      fetchedWalk = 0;
+
+      // Go back to start of search loop
+      goto restart_search;
+    }
+
+    // Both hashes match prefix (or no prefix filter) — output results
     if (usePrefix) {
-      printf("Prefix match H1: %s\n", MatchesPrefix(&h1) ? "YES" : "NO");
-      printf("Prefix match H2: %s\n", MatchesPrefix(&h2) ? "YES" : "NO");
+      printf("Prefix match H1: YES\n");
+      printf("Prefix match H2: YES\n");
     }
     if (useRange) {
       bool k1inRange = (k1.IsGreaterOrEqual(&keyRangeStart) && keyRangeEnd.IsGreaterOrEqual(&k1));
