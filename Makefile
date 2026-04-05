@@ -32,9 +32,10 @@ OBJET = $(addprefix $(OBJDIR)/, \
 endif
 
 CXX        = g++
-CUDA       = /usr/local/cuda-8.0
-CXXCUDA    = /usr/bin/g++-4.8
+CUDA       = /usr/local/cuda-12.0
+CXXCUDA    = /usr/bin/g++
 NVCC       = $(CUDA)/bin/nvcc
+ccap       = $(shell echo $(CCAP) | tr -d '.')
 
 ifdef gpu
 ifdef debug
@@ -90,4 +91,3 @@ clean:
 	@rm -f obj/*.o
 	@rm -f obj/GPU/*.o
 	@rm -f obj/hash/*.o
-
